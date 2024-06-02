@@ -14,7 +14,7 @@ License:        # FIXME
 # LICENSE.dependencies contains a full license breakdown
 
 URL:            https://zed.dev/
-Source:         https://github.com/zed-industries/zed/releases/tag/v%{zed_version}.tar.gz
+Source:         https://github.com/zed-industries/zed/archive/refs/tags/v%{zed_version}.tar.gz
 
 BuildRequires:  cargo-rpm-macros >= 24
 
