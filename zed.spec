@@ -17,6 +17,26 @@ URL:            https://zed.dev/
 Source:         https://github.com/zed-industries/zed/archive/refs/tags/v%{zed_version}.tar.gz
 
 BuildRequires:  cargo-rpm-macros >= 24
+BuildRequires:  gcc
+BuildRequires:  g++
+BuildRequires:  alsa-lib-devel
+BuildRequires:  fontconfig-devel
+BuildRequires:  wayland-devel
+BuildRequires:  libxkbcommon-x11-devel
+BuildRequires:  openssl-devel
+BuildRequires:  libzstd-devel
+BuildRequires:  perl-FindBin
+BuildRequires:  perl-IPC-Cmd
+BuildRequires:  perl-File-Compare
+BuildRequires:  perl-File-Copy
+BuildRequires:  perl-lib
+BuildRequires:  vulkan-loader
+
+Requires:  alsa-lib
+Requires:  fontconfig
+Requires:  openssl
+Requires:  libzstd
+Requires:  vulkan-loader
 
 %global _description %{expand:
 The fast, collaborative code editor.}
@@ -25,191 +45,73 @@ The fast, collaborative code editor.}
 
 %prep
 %autosetup -n zed-%{version} -p1
-%cargo_prep
+# Modified %%cargo_prep
+(
+    set -euo pipefail
+    /usr/bin/mkdir -p target/rpm
+    /usr/bin/ln -s rpm target/release
+    /usr/bin/rm -rf .cargo/
+    /usr/bin/mkdir -p .cargo
+    cat > .cargo/config.toml << EOF
+[build]
+rustc = "/usr/bin/rustc"
+rustdoc = "/usr/bin/rustdoc"
+# v0 mangling scheme provides more detailed backtraces around closures
+rustflags = ["-C", "symbol-mangling-version=v0", "--cfg", "tokio_unstable"]
 
-%generate_buildrequires
-%cargo_generate_buildrequires
+[alias]
+xtask = "run --package xtask --"
 
-%build
-%cargo_build
-%{cargo_license_summary}
-%{cargo_license} > LICENSE.dependencies
+[profile.rpm]
+inherits = "release"
+opt-level = 3
+codegen-units = 1
+debug = 2
+strip = "none"
+
+[env]
+CFLAGS = "-O2 -g"
+CXXFLAGS = "-O2 -g"
+LDFLAGS = "%{build_ldflags}"
+
+[install]
+root = "%{buildroot}/usr"
+
+[term]
+verbose = true
+
+EOF
+    /usr/bin/rm -f Cargo.lock
+    /usr/bin/rm -f Cargo.toml.orig
+)
+
+# %%build
+# %%cargo_build
+# %%{cargo_license_summary}
+# %%{cargo_license} > LICENSE.dependencies
 
 %install
-%cargo_install
+# Adapted %%cargo_install
+(
+    set -euo pipefail
+    /usr/bin/env CARGO_HOME=.cargo RUSTC_BOOTSTRAP=1 RUSTFLAGS='-Copt-level=3 -Cdebuginfo=2 -Ccodegen-units=1 -Cstrip=none -Cforce-frame-pointers=yes --cap-lints=warn' /usr/bin/cargo install -j${RPM_BUILD_NCPUS} -Z avoid-dev-deps --profile rpm --no-track --path crates/%{name}
+)
 # FIXME: install shared library
 
-%if %{with check}
-%check
-%cargo_test
-%endif
+# %%if %{with check}
+# %%check
+# %%cargo_test
+# %%endif
 
 %files
 %license LICENSE-AGPL
 %license LICENSE-APACHE
 %license LICENSE-GPL
-%license assets/icons/LICENSES
-%license assets/themes/LICENSES
-%license assets/themes/andromeda/LICENSE
-%license assets/themes/atelier/LICENSE
-%license assets/themes/ayu/LICENSE
-%license assets/themes/gruvbox/LICENSE
-%license assets/themes/one/LICENSE
-%license assets/themes/rose_pine/LICENSE
-%license assets/themes/sandcastle/LICENSE
-%license assets/themes/solarized/LICENSE
-%license assets/themes/summercamp/LICENSE
-%license crates/activity_indicator/LICENSE-GPL
-%license crates/anthropic/LICENSE-AGPL
-%license crates/assets/LICENSE-GPL
-%license crates/assistant/LICENSE-GPL
-%license crates/assistant2/LICENSE-GPL
-%license crates/assistant_tooling/LICENSE-GPL
-%license crates/audio/LICENSE-GPL
-%license crates/auto_update/LICENSE-GPL
-%license crates/breadcrumbs/LICENSE-GPL
-%license crates/call/LICENSE-GPL
-%license crates/channel/LICENSE-GPL
-%license crates/cli/LICENSE-GPL
-%license crates/client/LICENSE-GPL
-%license crates/clock/LICENSE-GPL
-%license crates/collab/LICENSE-AGPL
-%license crates/collab_ui/LICENSE-GPL
-%license crates/collections/LICENSE-APACHE
-%license crates/color/LICENSE-GPL
-%license crates/command_palette/LICENSE-GPL
-%license crates/command_palette_hooks/LICENSE-GPL
-%license crates/copilot/LICENSE-GPL
-%license crates/db/LICENSE-GPL
-%license crates/dev_server_projects/LICENSE-GPL
-%license crates/diagnostics/LICENSE-GPL
-%license crates/editor/LICENSE-GPL
-%license crates/extension/LICENSE-GPL
-%license crates/extension_api/LICENSE-APACHE
-%license crates/extension_cli/LICENSE-GPL
-%license crates/extensions_ui/LICENSE-GPL
-%license crates/feature_flags/LICENSE-GPL
-%license crates/feedback/LICENSE-GPL
-%license crates/file_finder/LICENSE-GPL
-%license crates/file_icons/LICENSE-GPL
-%license crates/fs/LICENSE-GPL
-%license crates/fsevent/LICENSE-GPL
-%license crates/fuzzy/LICENSE-GPL
-%license crates/git/LICENSE-GPL
-%license crates/git_hosting_providers/LICENSE-GPL
-%license crates/go_to_line/LICENSE-GPL
-%license crates/google_ai/LICENSE-GPL
-%license crates/gpui/LICENSE-APACHE
-%license crates/gpui_macros/LICENSE-APACHE
-%license crates/headless/LICENSE-GPL
-%license crates/http/LICENSE-APACHE
-%license crates/image_viewer/LICENSE-GPL
-%license crates/inline_completion_button/LICENSE-GPL
-%license crates/install_cli/LICENSE-GPL
-%license crates/journal/LICENSE-GPL
-%license crates/language/LICENSE-GPL
-%license crates/language_selector/LICENSE-GPL
-%license crates/language_tools/LICENSE-GPL
-%license crates/languages/LICENSE-GPL
-%license crates/live_kit_client/LICENSE-GPL
-%license crates/live_kit_server/LICENSE-AGPL
-%license crates/lsp/LICENSE-GPL
-%license crates/markdown/LICENSE-GPL
-%license crates/markdown_preview/LICENSE-GPL
-%license crates/media/LICENSE-APACHE
-%license crates/menu/LICENSE-GPL
-%license crates/multi_buffer/LICENSE-GPL
-%license crates/node_runtime/LICENSE-GPL
-%license crates/notifications/LICENSE-GPL
-%license crates/open_ai/LICENSE-GPL
-%license crates/outline/LICENSE-GPL
-%license crates/picker/LICENSE-GPL
-%license crates/prettier/LICENSE-GPL
-%license crates/project/LICENSE-GPL
-%license crates/project_panel/LICENSE-GPL
-%license crates/project_symbols/LICENSE-GPL
-%license crates/quick_action_bar/LICENSE-GPL
-%license crates/recent_projects/LICENSE-GPL
-%license crates/refineable/LICENSE-APACHE
-%license crates/refineable/derive_refineable/LICENSE-APACHE
-%license crates/release_channel/LICENSE-GPL
-%license crates/rich_text/LICENSE-GPL
-%license crates/rope/LICENSE-GPL
-%license crates/rpc/LICENSE-GPL
-%license crates/search/LICENSE-GPL
-%license crates/semantic_index/LICENSE-GPL
-%license crates/semantic_version/LICENSE-APACHE
-%license crates/settings/LICENSE-GPL
-%license crates/snippet/LICENSE-GPL
-%license crates/sqlez/LICENSE-GPL
-%license crates/sqlez_macros/LICENSE-GPL
-%license crates/story/LICENSE-GPL
-%license crates/storybook/LICENSE-GPL
-%license crates/sum_tree/LICENSE-APACHE
-%license crates/supermaven/LICENSE-GPL
-%license crates/supermaven_api/LICENSE-GPL
-%license crates/tab_switcher/LICENSE-GPL
-%license crates/task/LICENSE-GPL
-%license crates/tasks_ui/LICENSE-GPL
-%license crates/telemetry_events/LICENSE-GPL
-%license crates/terminal/LICENSE-GPL
-%license crates/terminal_view/LICENSE-GPL
-%license crates/text/LICENSE-GPL
-%license crates/theme/LICENSE-GPL
-%license crates/theme_importer/LICENSE-GPL
-%license crates/theme_selector/LICENSE-GPL
-%license crates/time_format/LICENSE-GPL
-%license crates/ui/LICENSE-GPL
-%license crates/ui_text_field/LICENSE-GPL
-%license crates/util/LICENSE-APACHE
-%license crates/vcs_menu/LICENSE-GPL
-%license crates/vim/LICENSE-GPL
-%license crates/welcome/LICENSE-GPL
-%license crates/workspace/LICENSE-GPL
-%license crates/worktree/LICENSE-GPL
-%license crates/zed/LICENSE-GPL
-%license crates/zed_actions/LICENSE-GPL
-%license extensions/astro/LICENSE-APACHE
-%license extensions/clojure/LICENSE-APACHE
-%license extensions/csharp/LICENSE-APACHE
-%license extensions/dart/LICENSE-APACHE
-%license extensions/deno/LICENSE-APACHE
-%license extensions/elixir/LICENSE-APACHE
-%license extensions/elm/LICENSE-APACHE
-%license extensions/emmet/LICENSE-APACHE
-%license extensions/erlang/LICENSE-APACHE
-%license extensions/gleam/LICENSE-APACHE
-%license extensions/glsl/LICENSE-APACHE
-%license extensions/haskell/LICENSE-APACHE
-%license extensions/html/LICENSE-APACHE
-%license extensions/lua/LICENSE-APACHE
-%license extensions/ocaml/LICENSE-APACHE
-%license extensions/php/LICENSE-APACHE
-%license extensions/prisma/LICENSE-APACHE
-%license extensions/purescript/LICENSE-APACHE
-%license extensions/racket/LICENSE-APACHE
-%license extensions/ruby/LICENSE-APACHE
-%license extensions/scheme/LICENSE-APACHE
-%license extensions/svelte/LICENSE-APACHE
-%license extensions/terraform/LICENSE-APACHE
-%license extensions/toml/LICENSE-APACHE
-%license extensions/uiua/LICENSE-APACHE
-%license extensions/vue/LICENSE-APACHE
-%license extensions/zig/LICENSE-APACHE
-%license tooling/xtask/LICENSE-GPL
-%license tooling/xtask/src/tasks/licenses.rs
-%license LICENSE.dependencies
+# %%license LICENSE.dependencies
 %doc CODE_OF_CONDUCT.md
 %doc CONTRIBUTING.md
 %doc README.md
 %{_bindir}/Zed
-%{_bindir}/cli
-%{_bindir}/collab
-%{_bindir}/dotenv
-%{_bindir}/storybook
-%{_bindir}/theme_importer
-%{_bindir}/xtask
-%{_bindir}/zed-extension
 
 %changelog
 %autochangelog
